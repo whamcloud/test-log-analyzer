@@ -1,0 +1,9 @@
+<timestamp>|<level>|<service>|<message>
+2025-01-01T12:00:00Z|ERROR|auth|invalid token
+2025-01-01T12:00:00Z|INFO|auth|invalid token
+2025-01-01T12:00:00Z|WARN|auth|invalid token
+2025-01-01T12:00:00Z|WARNING|auth|invalid token
+2025-01-01T12:00:00Z|Error|auth|invalid token
+2025-01-01T12:00:00Z|Info|auth|invalid token
+2025-01-01T12:00:00Z|WARN|auth|invalid token
+2025-01-01T12:00:00Z|ERROR|auth|inval123id token
