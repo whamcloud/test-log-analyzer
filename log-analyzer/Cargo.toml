@@ -1,0 +1,19 @@
+[package]
+name = "log-analyzer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+
+[[bin]]
+name = "log-analyzer"
+path = "src/main.rs"
+
+[[bin]]
+name = "generate_logs"
+path = "src/bin/generate_logs.rs"
+
+[[bin]]
+name = "bench"
+path = "src/bin/bench.rs"
