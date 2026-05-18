@@ -1,18 +1,21 @@
 use std::path::Path;
-use rayon::prelude::*;
+//use rayon::prelude::*;
 mod file_ops;
 
 fn main() -> Result<()>{
-    run_analyzer(Path::new("test.dat"));
+    let res = run_analyzer(Path::new("test.dat"))?;
+    println!("{}", res);
     Ok(())
 }
 
-fn run_analyzer(path: &std::path::Path){
-    let mut workers = file_ops::chunk_file(path).unwrap();
+fn run_analyzer(path: &std::path::Path) -> Result<LogOutput>{
+    let num = std::thread::available_parallelism()?;
+    let mut workers = file_ops::chunk_file(path, num.get()).unwrap();
     if workers.len() == 1{
-        let result = workers.pop().ok_or(anyhow::anyhow!("failed to get worker")).unwrap().analyze();
-        println!("{:?}", result);
+        workers.pop().ok_or(anyhow::anyhow!("failed to get worker")).unwrap().analyze()
     }else{
+        let mut result = Ok(LogOutput::default());
+        let point = &mut result;
         std::thread::scope(move |scope| {
             let mut results = Vec::with_capacity(workers.len());
             for worker in workers{
@@ -21,15 +24,20 @@ fn run_analyzer(path: &std::path::Path){
                 });
                 results.push(handle);
             }
-            println!("{}", results.into_iter()
-                .map(|handle| handle.join())
-                .filter_map(Result::ok)
-                .filter_map(Result::ok)
-                .sum::<LogOutput>()
-            );
+            *point = Ok(results.into_iter()
+                        .map(|handle| handle.join())
+                        .filter_map(Result::ok)
+                        .filter_map(Result::ok)
+                        .sum::<LogOutput>());
                 
         });
-        
+      result
+        //Ok(workers
+        //    .into_par_iter()
+        //    .map(|worker| worker.analyze())
+        //    .filter_map(Result::ok)
+        //    .sum()
+        //)
         //let mut log_output = LogOutput::default();
         //while let Ok(resp) =  rx.recv(){
         //    let _ =  resp

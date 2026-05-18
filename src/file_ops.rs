@@ -41,12 +41,11 @@ impl ChunkedWorker{
 }
 
 
-pub fn chunk_file(path: &std::path::Path) -> Result<Vec<ChunkedWorker>>{
+pub fn chunk_file(path: &std::path::Path, chunks: usize) -> Result<Vec<ChunkedWorker>>{
     let file_metadata = std::fs::metadata(path).context("metadata file read failed")?;
     let file_size = file_metadata.len();
-    let cores = num_cpus::get();
-    let mut workers = Vec::with_capacity(cores);
-    let chunk_size = file_size / (cores as u64);
+    let mut workers = Vec::with_capacity(chunks);
+    let chunk_size = file_size / (chunks as u64);
 
     let mut start_chunk = 0;
     let mut end_chunk;
@@ -54,7 +53,7 @@ pub fn chunk_file(path: &std::path::Path) -> Result<Vec<ChunkedWorker>>{
     let mut reader = BufReader::new(file);
     let mut buffer = Vec::new();
 
-    for _i in 0..(cores-1){
+    for _i in 0..(chunks-1){
         buffer.clear();
         end_chunk = start_chunk + chunk_size;
         if end_chunk > file_size{
