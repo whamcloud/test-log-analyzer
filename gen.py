@@ -1,15 +1,13 @@
 import random
 import os
 
-def generate_constant_log_file(filename="constant_log_file.log", target_size_mb=250):
-    levels = ["TRACE", "DEBUG", "INFO", "ERROR"]
+def generate_constant_log_file(filename, target_size_mb=250):
+    levels = ["WARN", "INFO", "ERROR"]
     
-    # Define the constants explicitly
     constant_timestamp = "2025-01-01T12:00:00Z"
     constant_domain = "auth"
     constant_message = "invalid token"
     
-    # Pre-calculated structural junk for invalid formatting injects
     malformed_templates = [
         "2025-01-01T12:00:00Z INVALID_SEPARATOR auth message without pipes",
         "|WARN|database|missing timestamp entirely",
@@ -26,14 +24,12 @@ def generate_constant_log_file(filename="constant_log_file.log", target_size_mb=
     
     print(f"Generating ~{target_size_mb} MB log file with constant fields at '{filename}'...")
     
-    # Optimized stream buffer window for fast sequential writing
     with open(filename, "w", encoding="utf-8", buffering=10*1024*1024) as f:
         while current_bytes < target_bytes:
             # 2% chance to inject an invalid/malformed log line
             if random.random() < 0.02:
                 log_line = random.choice(malformed_templates) + "\n"
             else:
-                # Generate line using our constant variables combined with random level
                 level = random.choice(levels)
                 log_line = f"{constant_timestamp}|{level}|{constant_domain}|{constant_message}\n"
             
@@ -44,4 +40,4 @@ def generate_constant_log_file(filename="constant_log_file.log", target_size_mb=
     print(f"Success! Generated file size: {actual_size_mb:.2f} MB")
 
 if __name__ == "__main__":
-    generate_constant_log_file(filename="test.dat",target_size_mb=15*1024)
+    generate_constant_log_file("test.dat",target_size_mb=15*1024)

@@ -44,6 +44,7 @@ fn bench_run_analyzer(c: &mut Criterion) {
                         path: path.clone(),
                         core_multiplier: m,
                         buffer_size: 1024 * 1024 * 16,
+                        enable_error_reporting: false,
                     })
                     .unwrap()
                 })

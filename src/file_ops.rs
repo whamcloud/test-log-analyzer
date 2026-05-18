@@ -10,6 +10,7 @@ pub struct ChunkedWorker {
     end_offset: u64,
     path: Arc<std::path::PathBuf>,
     buffer_size: usize,
+    error_tx: Option<crossbeam_channel::Sender<crate::types::ErrorMessage>>,
 }
 
 impl ChunkedWorker {
@@ -18,12 +19,14 @@ impl ChunkedWorker {
         start_offset: u64,
         end_offset: u64,
         buffer_size: usize,
+        error_tx: Option<crossbeam_channel::Sender<crate::types::ErrorMessage>>,
     ) -> Result<Self> {
         Ok(Self {
             start_offset,
             end_offset,
             path,
             buffer_size,
+            error_tx,
         })
     }
 
@@ -40,8 +43,19 @@ impl ChunkedWorker {
             if bytes_read == 0 {
                 break;
             }
-            let log_level = crate::types::parse_log_line(&buffer).ok();
-            log_output.inc(log_level);
+
+            match crate::types::parse_log_line(&buffer) {
+                Ok(log_level) => log_output.inc(Some(log_level)),
+                Err(err) => {
+                    log_output.inc(None);
+                    if let Some(tx) = &self.error_tx {
+                        let _ = tx.send(crate::types::ErrorMessage {
+                            offset: self.start_offset,
+                            msg: err.as_str(),
+                        });
+                    }
+                }
+            }
             self.start_offset += bytes_read as u64;
         }
         Ok(log_output)
@@ -52,6 +66,7 @@ pub fn chunk_file(
     path: &std::sync::Arc<std::path::PathBuf>,
     chunks: usize,
     buffer_size: usize,
+    error_tx: Option<crossbeam_channel::Sender<crate::types::ErrorMessage>>,
 ) -> Result<Vec<ChunkedWorker>> {
     let file_metadata = std::fs::metadata(path.as_path()).context("metadata file read failed")?;
     let file_size = file_metadata.len();
@@ -74,10 +89,11 @@ pub fn chunk_file(
         let bytes_read = reader.read_until(b'\n', &mut buffer)?;
         end_chunk += bytes_read as u64;
         workers.push(ChunkedWorker::new(
-            Arc::clone(path),
+            path.clone(),
             start_chunk,
             end_chunk,
             buffer_size,
+            error_tx.clone(),
         )?);
         start_chunk = end_chunk + 1;
     }
@@ -86,16 +102,53 @@ pub fn chunk_file(
         start_chunk,
         file_size,
         buffer_size,
+        error_tx,
     )?);
     Ok(workers)
+}
+
+// Write to a temp file and returns the file path
+// if error reporting is not enabled, return None
+fn setup_error_handler(
+    enable: bool,
+) -> (
+    Option<std::thread::JoinHandle<()>>,
+    Option<crossbeam_channel::Sender<crate::types::ErrorMessage>>,
+) {
+    if enable {
+        let (tx, rx) = crossbeam_channel::unbounded::<crate::types::ErrorMessage>();
+        use std::{env, process};
+
+        let mut path = env::temp_dir();
+        path.push(format!("ddnn_error_{}.log", process::id()));
+        println!("Error log at: {}", path.to_str().unwrap());
+
+        let thread = std::thread::spawn(move || {
+            use std::io::Write;
+
+            let file = std::fs::File::create(path).expect("failed to create error.log");
+            let mut handle = std::io::BufWriter::new(file);
+            while let Ok(err) = rx.recv() {
+                let _ = writeln!(handle, "Error at offset {}: {}", err.offset, err.msg);
+            }
+            let _ = handle.flush();
+        });
+        (Some(thread), Some(tx))
+    } else {
+        (None, None)
+    }
 }
 
 pub fn run_analyzer(config: crate::types::Config) -> Result<crate::types::LogOutput> {
     let path = std::sync::Arc::new(config.path);
     let core_ids = core_affinity::get_core_ids().ok_or(anyhow::anyhow!("couldnt get core id"))?;
     let num = core_ids.len() * config.core_multiplier;
-    let mut workers = chunk_file(&path, num, config.buffer_size).unwrap();
-    if workers.len() == 1 {
+
+    let (err_thread, err_tx) = setup_error_handler(config.enable_error_reporting);
+
+    let mut workers = chunk_file(&path, num, config.buffer_size, err_tx).unwrap();
+
+    let final_output = if workers.len() == 1 {
         workers
             .pop()
             .ok_or(anyhow::anyhow!("failed to get worker"))
@@ -134,7 +187,12 @@ pub fn run_analyzer(config: crate::types::Config) -> Result<crate::types::LogOut
                 .sum());
         });
         result
+    };
+
+    if let Some(thread) = err_thread {
+        thread.join().ok();
     }
+    final_output
 }
 
 #[cfg(test)]
@@ -158,7 +216,7 @@ mod tests {
             "2025-01-01T12:00:01Z|ERROR|svc|msg",
         ]);
         let path = std::sync::Arc::new(f.path().to_path_buf());
-        let workers = chunk_file(&path, 4, 1024).unwrap();
+        let workers = chunk_file(&path, 4, 1024, None).unwrap();
         assert!(!workers.is_empty());
     }
 
@@ -174,6 +232,7 @@ mod tests {
             path: f.path().to_path_buf(),
             core_multiplier: 1,
             buffer_size: 1024,
+            enable_error_reporting: false,
         };
         let result = run_analyzer(config).unwrap();
         

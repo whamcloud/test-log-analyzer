@@ -1,11 +1,11 @@
-use anyhow::Result;
-use std::str::from_utf8;
+
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub path: std::path::PathBuf,
     pub core_multiplier: usize,
     pub buffer_size: usize,
+    pub enable_error_reporting: bool,
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]
@@ -64,31 +64,44 @@ impl LogOutput {
     }
 }
 
-/// Log levels as specified in the README: INFO, WARN, ERROR.
-///
-/// Variants follow Rust naming conventions (PascalCase) to satisfy
-/// the `clippy::upper_case_acronyms` lint while keeping byte-level
-/// matching against the raw log strings in `LogLevel::parse`.
 #[derive(Debug, PartialEq, Eq)]
-#[repr(u8)]
+pub enum ParseError {
+    MissingTimestampField,
+    MissingLevelField,
+    UnknownLevel,
+}
+
+impl ParseError {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ParseError::MissingTimestampField => "missing timestamp field",
+            ParseError::MissingLevelField => "missing level field",
+            ParseError::UnknownLevel => "unknown level",
+        }
+    }
+}
+
+pub struct ErrorMessage {
+    pub offset: u64,
+    pub msg: &'static str,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum LogLevel {
-    Info = 0,
-    Warn = 1,
-    Error = 2,
+    Info,
+    Warn,
+    Error,
 }
 
 impl LogLevel {
     /// Parse a raw byte slice into a `LogLevel`.
     /// Returns `Err` for any unrecognised level.
-    pub fn parse(input: &[u8]) -> Result<Self> {
+    pub fn parse(input: &[u8]) -> Result<Self, ParseError> {
         match input {
             b"INFO" => Ok(Self::Info),
             b"WARN" => Ok(Self::Warn),
             b"ERROR" => Ok(Self::Error),
-            u => Err(anyhow::anyhow!(
-                "unknown log level {:?}",
-                from_utf8(u).unwrap_or("<non-utf8>")
-            )),
+            _ => Err(ParseError::UnknownLevel),
         }
     }
 }
@@ -97,16 +110,16 @@ impl LogLevel {
 ///
 /// Expects `<timestamp>|<level>|<service>|<message>`.
 /// Accepts `&[u8]` — no per-line `String` allocation required.
-pub fn parse_log_line(input: &[u8]) -> Result<LogLevel> {
+pub fn parse_log_line(input: &[u8]) -> Result<LogLevel, ParseError> {
     let mut fields = input.split(|&b| b == b'|');
     // skip timestamp field
     fields
         .next()
-        .ok_or_else(|| anyhow::anyhow!("missing timestamp field"))?;
+        .ok_or(ParseError::MissingTimestampField)?;
     // parse level field
     fields
         .next()
-        .ok_or_else(|| anyhow::anyhow!("missing level field"))
+        .ok_or(ParseError::MissingLevelField)
         .and_then(LogLevel::parse)
 }
 
@@ -123,38 +136,38 @@ mod tests {
 
     #[test]
     fn parse_unknown_level_returns_err() {
-        assert!(LogLevel::parse(b"TRACE").is_err());
-        assert!(LogLevel::parse(b"DEBUG").is_err());
-        assert!(LogLevel::parse(b"").is_err());
-        assert!(LogLevel::parse(b"info").is_err());
+        assert_eq!(LogLevel::parse(b"TRACE"), Err(ParseError::UnknownLevel));
+        assert_eq!(LogLevel::parse(b"DEBUG"), Err(ParseError::UnknownLevel));
+        assert_eq!(LogLevel::parse(b""), Err(ParseError::UnknownLevel));
+        assert_eq!(LogLevel::parse(b"info"), Err(ParseError::UnknownLevel));
     }
 
     #[test]
     fn test_parse_valid_line() {
         let line = b"2025-01-01T12:00:00Z|ERROR|auth|invalid token\n";
-        assert!(matches!(parse_log_line(line), Ok(LogLevel::Error)));
+        assert_eq!(parse_log_line(line), Ok(LogLevel::Error));
     }
 
     #[test]
     fn test_parse_missing_pipe_is_invalid() {
         let line = b"2025-01-01T12:00:00Z ERROR auth message\n";
-        assert!(parse_log_line(line).is_err());
+        assert_eq!(parse_log_line(line), Err(ParseError::MissingLevelField));
     }
 
     #[test]
     fn test_parse_empty_level_field_is_invalid() {
         let line = b"2025-01-01T12:00:00Z||auth|message\n";
-        assert!(parse_log_line(line).is_err());
+        assert_eq!(parse_log_line(line), Err(ParseError::UnknownLevel));
     }
 
     #[test]
     fn test_parse_empty_line_is_invalid() {
-        assert!(parse_log_line(b"").is_err());
+        assert_eq!(parse_log_line(b""), Err(ParseError::MissingLevelField));
     }
 
     #[test]
     fn test_parse_binary_garbage() {
-        assert!(parse_log_line(b"\x00\x01\x02\x03").is_err());
+        assert_eq!(parse_log_line(b"\x00\x01\x02\x03"), Err(ParseError::MissingLevelField));
     }
 
     #[test]
