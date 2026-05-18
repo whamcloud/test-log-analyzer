@@ -1,0 +1,27 @@
+[package]
+name = "log_analyzer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+thiserror = "2"
+memchr = "2"
+log = "0.4"
+env_logger = "0.11"
+clap = { version = "4", features = ["derive", "env"] }
+rayon = "1"
+dotenvy = "0.15.7"
+
+[dev-dependencies]
+criterion = "0.5"
+tempfile = "3"
+
+[[bench]]
+name = "analyzer_bench"
+harness = false
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,11 @@
+2025-01-01T12:00:00Z|INFO|auth|login success
+2025-01-01T12:00:01Z|WARN|payment|slow request
+2025-01-01T12:00:02Z|ERROR|auth|invalid token
+2025-01-01T12:00:02Z|ERROR|auth|invalid token
+2026-01-01T12:00:02Z|INFO|auth|invalid token
+2026-01-01T12:00:02Z|WARN|auth|invalid token
+2026-01-01T12:00:02Z|ERROR|auth|invalid token
+2026-01-01T12:00:02Z|ERROR|auth|invalid token
+2026-01-01T12:00:02Z|ERROR|auth|invalid token
+2026-01-01T12:00:02Z|ERROR|auth|invalid token
+bad-line
