@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 aligned = "0.4.3"
 anyhow = "1.0.102"
+core_affinity = "0.8.3"
+crossbeam-channel = "0.5.15"
 num_cpus = "1.17.0"
 rayon = "1.12.0"
 
