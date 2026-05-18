@@ -1,7 +1,8 @@
 import random
 import os
+import sys
 
-def generate_constant_log_file(filename, target_size_mb=250):
+def generate_constant_log_file(filename, target_size_mb):
     levels = ["WARN", "INFO", "ERROR"]
     
     constant_timestamp = "2025-01-01T12:00:00Z"
@@ -40,4 +41,12 @@ def generate_constant_log_file(filename, target_size_mb=250):
     print(f"Success! Generated file size: {actual_size_mb:.2f} MB")
 
 if __name__ == "__main__":
-    generate_constant_log_file("test.dat",target_size_mb=15*1024)
+    target_size = 250
+    if len(sys.argv) > 1:
+        try:
+            target_size = int(sys.argv[1])
+        except ValueError:
+            print("Error: Target size must be an integer.")
+            sys.exit(1)
+    print(f"Generating log file with size: {target_size} MB")
+    generate_constant_log_file("test1.dat",target_size)

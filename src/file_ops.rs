@@ -1,4 +1,4 @@
-use crate::types::{ErrorMessage, LogOutput, Config, parse_log_line};
+use crate::types::{ErrorMessage, LogOutput, Config, LogLine};
 use anyhow::{Context, Result};
 use std::fs::File;
 use std::io::BufReader;
@@ -44,8 +44,8 @@ impl ChunkedWorker {
                 break;
             }
 
-            match parse_log_line(&buffer) {
-                Ok(log_level) => log_output.inc(Some(log_level)),
+            match LogLine::parse(&buffer) {
+                Ok(log_line) => log_output.inc(Some(log_line.level)),
                 Err(err) => {
                     log_output.inc(None);
                     if let Some(tx) = &self.error_tx {

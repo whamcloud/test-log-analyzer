@@ -7,7 +7,7 @@ fn main() -> Result<()> {
     let enable_error_reporting = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(false);
     let config = Config {
         path: PathBuf::from(path_arg),
-        core_multiplier: 4, // workers = core_multipliers * no_of_cores
+        core_multiplier: 1, // workers = core_multipliers * no_of_cores
         buffer_size: 1024 * 1024 * 100, // 100MB buffer per worker
         enable_error_reporting,
     };

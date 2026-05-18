@@ -1,5 +1,5 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use ddnn::{Config, parse_log_line, run_analyzer};
+use ddnn::{Config, LogLine, run_analyzer};
 use std::io::Write;
 
 fn bench_parse(c: &mut Criterion) {
@@ -7,12 +7,11 @@ fn bench_parse(c: &mut Criterion) {
     let invalid = b"CORRUPT_BYTES_CRASH_DUMP";
 
     let mut g = c.benchmark_group("parse_log_line");
-    g.throughput(Throughput::Bytes(valid.len() as u64));
     g.bench_function("valid_line", |b| {
-        b.iter(|| parse_log_line(std::hint::black_box(valid)))
+        b.iter(|| LogLine::parse(std::hint::black_box(valid)))
     });
     g.bench_function("invalid_line", |b| {
-        b.iter(|| parse_log_line(std::hint::black_box(invalid)))
+        b.iter(|| LogLine::parse(std::hint::black_box(invalid)))
     });
     g.finish();
 }
@@ -29,6 +28,7 @@ fn bench_run_analyzer(c: &mut Criterion) {
     let path = tmp.path().to_path_buf();
 
     let mut g = c.benchmark_group("run_analyzer");
+    // it measure throughput in terms of bytes per second
     g.throughput(Throughput::Bytes(written as u64));
 
     for multiplier in [1usize, 2, 4] {

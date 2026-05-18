@@ -34,7 +34,7 @@ Parsing avoids all `String` allocations by operating entirely on byte slices (`&
 1. **Buffered Reading:** Using a `BufReader` with a highly optimized buffer size (default 100MB).
 2. **Byte Slicing:** The `parse_log_line` function scans the raw bytes. It uses `.split(|&b| b == b'|')` to step through the pipe delimiters.
 3. **Enum Mapping:** The extracted level slice (e.g., `b"ERROR"`) is pattern matched directly to a `LogLevel` variant.
-4. **No UTF-8 Overhead:**: Avoid using `String::from_utf8` checks entirely unless emitting an error message and use byte matching instead.
+4. **No UTF-8 Overhead:**: Avoid using `String::from_utf8` checks entirely unless emitting an error message and use byte matching instead. Parsing and validating on byte slices, rather than allocating string. Using memchr instead of split for SIMD optimization.
 
 ---
 
@@ -65,6 +65,15 @@ We can run: `sh profile.sh` to generate a flamegraph.svg and checkout hotspots.
 Additionally, I heavily used `time` command to check the time taken by user and kernel and cpu util
 cmd:  `time cargo r --profile profiling`
 
+```
+INFO: 115515738
+WARN: 115521672
+ERROR: 115510105
+
+Invalid: 7070531
+cargo r --release  12.53s user 2.65s system 179% cpu 8.447 total
+```
+
 Throughput was verified using Criterion:
 cmd: `cargo bench` 
 
@@ -72,3 +81,18 @@ cmd: `cargo bench`
 ## Possible Improvement:
 - Explore possiblity of using file mapped to user space memory directly , avoiding Disk -> Kernel copy and Kernel -> User space copy (probably io_uring)
 - Allow multiple worker analyze function to be async, so that thread can work on other tasks while waiting for I/O
+
+
+## Usage:
+
+**log_analyzer:** cargo r -- <path_to_log_file : file_path> <enable_error_reporting: "true"|"false">
+
+**generate_large_file:** python3 gen.py <target_size_mb : size_in_mb>
+
+**generate_profile:** sh profile.sh
+
+**cargo_benchmark:** cargo bench
+
+**time_measurement:** time cargo r -- <path_to_log_file>
+
+**cargo test:** cargo test
