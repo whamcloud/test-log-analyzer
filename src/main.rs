@@ -4,8 +4,7 @@ use log_analyzer::analyzer::LogAnalyzer;
 use log_analyzer::cli::Config;
 
 fn main() {
-    // Load .env file if present. Silently ignored when missing so the binary
-    // works fine without one (CI, production servers, etc.).
+    // Load .env file if present. Silently ignored when missing
     let _ = dotenvy::dotenv();
 
     // Default to "info" so the report is visible without RUST_LOG being set.
