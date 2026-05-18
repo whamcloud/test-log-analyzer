@@ -1,0 +1,19 @@
+[package]
+name = "ddnn"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aligned = "0.4.3"
+anyhow = "1.0.102"
+num_cpus = "1.17.0"
+rayon = "1.12.0"
+
+[profile.release]
+debug = true
+lto = "thin"
+codegen-units = 1
+
+[profile.profiling]
+inherits = "release"
+strip = false
