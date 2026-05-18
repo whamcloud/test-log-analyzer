@@ -1,4 +1,0 @@
-sudo dtrace -c './zopfli large-file' -o out.stacks -n 'profile-997 /execname == "zopfli"/ { @[ustack(100)] = count(); }
-
-
-./stackcollapse.pl out.stacks | ./flamegraph.pl > pretty-graph.svg

@@ -1,77 +1,74 @@
-# Design & Reasoning: Zero-Copy Log Analyzer
+# Design & Reasoning: High Performance Log Analyzer
 
 This document outlines the design, architecture, and performance characteristics of the `ddnn` log analyzer.
 
-## Architecture & Code Organization
+## Code Structure
 
-The application is structured as a library (`src/lib.rs`) with a thin binary wrapper (`src/main.rs`). This allows seamless integration testing and Criterion benchmarking directly against the internal `run_analyzer` logic. 
+`src/main.rs` is the entry point for the application.
+`src/file_ops.rs` handles file operations and worker management.
+`src/types.rs` defines the types used in the application.
+`benches/benchmark.rs` is the benchmark code.
 
-The analyzer processes the file by:
-1. Identifying the size of the log file.
-2. Dividing the file size evenly across the number of available physical cores (`core_multiplier` default to 4x).
-3. Ensuring chunk boundaries align perfectly with newline boundaries (`\n`) so records are never split across threads.
-4. Spawning a `ChunkedWorker` per chunk, reading their results concurrently via `crossbeam-channel`, and aggregating them.
-5. Emitting the final tally of `INFO`, `WARN`, `ERROR`, and `Invalid` lines.
+## Architecture
 
----
+Given the constraints to use safe rust(eliminating mmap as an option) and to read a huge file, I am splitting the file into chunks and processing them in parellel using worker threads.
 
-## Zero-Copy Parsing
+`ChunkWorker` - A worker having start_offset and end_offset of a file to process
+
+** The execution is split into 3 parts: **
+
+1. Chunking the file: `chunk_file` is used to calculate the offset range for each `ChunkWorker` to process
+2. Splitting the task:
+    - For each core id(logical core in the machine), we spawn a thread
+    - ChunkWorkers calculated in step 1 are sent to a crossbeam unbounded channel Sender
+    - Each thread will recv the ChunkWorker from the channel and process it
+3. Aggregrating the result: After all the threads are done processing, we aggregate the results from each thread and return the final result
+
+Using crossbeam channel since we need single producer multi consumer channel. Alternatively
+we could use n workers for n threads for n cores, and assign a large chunk to each worker. In this case it would be sub optimal as that would require large mem allocation for buffer for each worker. (And block a possible optimization where a thread can process mutliple chunks while waiting for I/O)
+
+## Low Overhead for Parsing
 
 Parsing avoids all `String` allocations by operating entirely on byte slices (`&[u8]`).
 
-1. **Buffered Reading:** We use a `BufReader` with a highly optimized buffer size (default 100MB).
+1. **Buffered Reading:** Using a `BufReader` with a highly optimized buffer size (default 100MB).
 2. **Byte Slicing:** The `parse_log_line` function scans the raw bytes. It uses `.split(|&b| b == b'|')` to step through the pipe delimiters.
 3. **Enum Mapping:** The extracted level slice (e.g., `b"ERROR"`) is pattern matched directly to a `LogLevel` variant.
-4. **No UTF-8 Overhead:** Because we match raw bytes and log levels are pure ASCII, we bypass expensive `String::from_utf8` checks entirely unless emitting an error message.
+4. **No UTF-8 Overhead:**: Avoid using `String::from_utf8` checks entirely unless emitting an error message and use byte matching instead.
 
 ---
 
 ## Memory Allocations & Trade-offs
 
 **Where allocations are unavoidable:**
-- **The `BufReader` buffer:** A large contiguous block (e.g., 100MB) is allocated per thread. This is a deliberate trade-off: we trade a fixed, predictable amount of memory for a drastic reduction in I/O system calls.
-- **The line buffer (`Vec<u8>`):** Each `ChunkedWorker` holds exactly one `Vec<u8>` to buffer the *current* line. This vector is cleared and heavily reused (`.clear()`), meaning it only allocates once to the length of the longest line encountered.
+- **The `BufReader` buffer:** A large contiguous block (e.g., 100MB) is allocated per worker. This is a deliberate trade-off: we trade a fixed, predictable amount of memory for a drastic reduction in I/O system calls.
+- **The line buffer (`Vec<u8>`):** Each `ChunkedWorker` holds exactly one `Vec<u8>` to buffer the *current* line and reused for each iteration.
 
 **Performance Trade-offs:**
-- **Manual Buffer vs `mmap`:** We use large buffered reads rather than memory-mapped files (`mmap`). For very large files, `mmap` can trigger severe page-fault thrashing when accessed across many threads. Explicit `read_until` buffers keep the access pattern strictly sequential and cache-friendly.
-- **Thread Count:** We default to spawning 4 workers per physical core (`core_ids.len() * 4`). This slightly oversubscribes the CPU to hide disk I/O latency.
-
----
-
-## Behavior on Very Large Files
-
-The solution is `O(1)` in memory relative to the file size. 
-Processing a 1GB file and processing a 100GB file take exactly the same amount of peak RAM. Memory footprint is strictly bounded by:
-`Number of Threads × BufReader Capacity (100MB)`.
-
-The parallelism is designed to saturate NVMe read speeds.
-
----
+- **Manual Buffer vs `mmap`:** Using buffered reads rather than memory-mapped files. Well, in rust, using mmap is unsafe, and since we are doing sequential reads, the OS page caching would work in our favour.
+- **Thread Count:** spawning 4 workers per physical core (`core_ids.len() * 4`). This slightly oversubscribes the CPU to hide disk I/O latency.
+- **Channel vs direct worker assignment:** Using a channel to distribute work to workers. This allows a worker to process multiple chunks if it finishes early, improving load balancing. Each thread is additionally pinned to a core, reducing context switches
+- **Error Reporting:** Using a lightweight error struct and not `anyhow::anyhow!` to create an error when parsing fails. All workers have a `tx(mpsc::channel)` which is collected by an error handler (a dedicated thread) which consumes the message and writes to an output temp file.
+ ---
 
 ## Performance & Benchmark Results
 
-Throughput was verified using Criterion. The results show massive throughput thanks to the zero-copy slice matching and aggressive multicore chunking.
+For measuring performance and throughput, I have generated a large file(~15 gb) with `gen.py` to simulate a large file processing, followed by `dtrace` to capture CPU profiles and `flamegraph.pl` to generate visuals. (checkout `profile.sh`).
 
-```text
-parse_log_line/valid_line
-                        time:   [8.8143 ns 8.8215 ns 8.8299 ns]
-                        thrpt:  [4.7463 GiB/s 4.7509 GiB/s 4.7547 GiB/s]
+We can run: `sh profile.sh` to generate a flamegraph.svg and checkout hotspots.
 
-parse_log_line/invalid_line
-                        time:   [22.933 ns 22.994 ns 23.048 ns]
-                        thrpt:  [1.8183 GiB/s 1.8226 GiB/s 1.8274 GiB/s]
+`dtrace` was useful to check for memory allocations that could have been avoided:
+1. Identified String allocations when creating error messages using anyhow
+2. Identified Redundant buffer allocations when in ChunkedWorker (later rectified by having a single buffer which is reused)
+3. Identified writing errors to stderr in main thread is costly, moved to a dedicated error handler thread to write to a temp file
 
-run_analyzer/core_multiplier/1
-                        time:   [13.739 ms 13.837 ms 13.937 ms]
-                        thrpt:  [4.4846 GiB/s 4.5170 GiB/s 4.5492 GiB/s]
+Additionally, I heavily used `time` command to check the time taken by user and kernel and cpu util
+cmd:  `time cargo r --profile profiling`
 
-run_analyzer/core_multiplier/2
-                        time:   [19.130 ms 19.274 ms 19.421 ms]
-                        thrpt:  [3.2181 GiB/s 3.2428 GiB/s 3.2672 GiB/s]
+Throughput was verified using Criterion:
+cmd: `cargo bench` 
 
-run_analyzer/core_multiplier/4
-                        time:   [32.583 ms 33.047 ms 33.559 ms]
-                        thrpt:  [1.8624 GiB/s 1.8913 GiB/s 1.9182 GiB/s]
-```
 
-*Note on scaling:* The 64MB file used in the automated benchmark is too small to overcome the fixed overhead of spawning many threads, resulting in the highest throughput (4.5 GiB/s) at `core_multiplier=1`. In the context of multi-gigabyte files, `core_multiplier=4` ensures parallel chunk ingestion outpaces disk latency constraints.
+## Possible Improvement:
+- Explore possiblity of using file mapped to user space memory directly , avoiding Disk -> Kernel copy and Kernel -> User space copy (probably io_uring)
+- Allow multiple worker analyze function to be async, so that thread can work on other tasks while waiting for I/O

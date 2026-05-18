@@ -25,13 +25,6 @@ impl std::iter::Sum for LogOutput {
     }
 }
 
-/// Output matches the README spec exactly:
-///
-/// ```text
-/// INFO: 120394
-/// WARN: 23941
-/// ERROR: 4821
-/// ```
 impl std::fmt::Display for LogOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -94,8 +87,6 @@ pub enum LogLevel {
 }
 
 impl LogLevel {
-    /// Parse a raw byte slice into a `LogLevel`.
-    /// Returns `Err` for any unrecognised level.
     pub fn parse(input: &[u8]) -> Result<Self, ParseError> {
         match input {
             b"INFO" => Ok(Self::Info),
@@ -106,10 +97,8 @@ impl LogLevel {
     }
 }
 
-/// Parse a single log line and return its `LogLevel`.
-///
-/// Expects `<timestamp>|<level>|<service>|<message>`.
-/// Accepts `&[u8]` — no per-line `String` allocation required.
+
+/// Format of logline `<timestamp>|<level>|<service>|<message>`.
 pub fn parse_log_line(input: &[u8]) -> Result<LogLevel, ParseError> {
     let mut fields = input.split(|&b| b == b'|');
     // skip timestamp field

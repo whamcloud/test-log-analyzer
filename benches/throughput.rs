@@ -2,7 +2,6 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use ddnn::{Config, parse_log_line, run_analyzer};
 use std::io::Write;
 
-// ── parse_log_line micro-benchmark ────────────────────────────────────────────
 fn bench_parse(c: &mut Criterion) {
     let valid = b"2025-01-01T12:00:00Z|ERROR|auth|invalid token";
     let invalid = b"CORRUPT_BYTES_CRASH_DUMP";
@@ -18,9 +17,7 @@ fn bench_parse(c: &mut Criterion) {
     g.finish();
 }
 
-// ── end-to-end throughput benchmark ───────────────────────────────────────────
 fn bench_run_analyzer(c: &mut Criterion) {
-    // Write a small (~64 MB) temp file once per benchmark run
     let tmp = tempfile::NamedTempFile::new().unwrap();
     let line = b"2025-01-01T12:00:00Z|INFO|auth|hello world\n";
     let target = 64 * 1024 * 1024usize;

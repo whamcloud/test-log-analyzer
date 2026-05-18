@@ -1,4 +1,4 @@
-use crate::types::LogOutput;
+use crate::types::{ErrorMessage, LogOutput, Config, parse_log_line};
 use anyhow::{Context, Result};
 use std::fs::File;
 use std::io::BufReader;
@@ -10,7 +10,7 @@ pub struct ChunkedWorker {
     end_offset: u64,
     path: Arc<std::path::PathBuf>,
     buffer_size: usize,
-    error_tx: Option<crossbeam_channel::Sender<crate::types::ErrorMessage>>,
+    error_tx: Option<crossbeam_channel::Sender<ErrorMessage>>,
 }
 
 impl ChunkedWorker {
@@ -19,7 +19,7 @@ impl ChunkedWorker {
         start_offset: u64,
         end_offset: u64,
         buffer_size: usize,
-        error_tx: Option<crossbeam_channel::Sender<crate::types::ErrorMessage>>,
+        error_tx: Option<crossbeam_channel::Sender<ErrorMessage>>,
     ) -> Result<Self> {
         Ok(Self {
             start_offset,
@@ -44,12 +44,12 @@ impl ChunkedWorker {
                 break;
             }
 
-            match crate::types::parse_log_line(&buffer) {
+            match parse_log_line(&buffer) {
                 Ok(log_level) => log_output.inc(Some(log_level)),
                 Err(err) => {
                     log_output.inc(None);
                     if let Some(tx) = &self.error_tx {
-                        let _ = tx.send(crate::types::ErrorMessage {
+                        let _ = tx.send(ErrorMessage {
                             offset: self.start_offset,
                             msg: err.as_str(),
                         });
@@ -66,7 +66,7 @@ pub fn chunk_file(
     path: &std::sync::Arc<std::path::PathBuf>,
     chunks: usize,
     buffer_size: usize,
-    error_tx: Option<crossbeam_channel::Sender<crate::types::ErrorMessage>>,
+    error_tx: Option<crossbeam_channel::Sender<ErrorMessage>>,
 ) -> Result<Vec<ChunkedWorker>> {
     let file_metadata = std::fs::metadata(path.as_path()).context("metadata file read failed")?;
     let file_size = file_metadata.len();
@@ -95,7 +95,7 @@ pub fn chunk_file(
             buffer_size,
             error_tx.clone(),
         )?);
-        start_chunk = end_chunk + 1;
+        start_chunk = end_chunk;
     }
     workers.push(ChunkedWorker::new(
         Arc::clone(path),
@@ -113,10 +113,10 @@ fn setup_error_handler(
     enable: bool,
 ) -> (
     Option<std::thread::JoinHandle<()>>,
-    Option<crossbeam_channel::Sender<crate::types::ErrorMessage>>,
+    Option<crossbeam_channel::Sender<ErrorMessage>>,
 ) {
     if enable {
-        let (tx, rx) = crossbeam_channel::unbounded::<crate::types::ErrorMessage>();
+        let (tx, rx) = crossbeam_channel::unbounded::<ErrorMessage>();
         use std::{env, process};
 
         let mut path = env::temp_dir();
@@ -139,7 +139,7 @@ fn setup_error_handler(
     }
 }
 
-pub fn run_analyzer(config: crate::types::Config) -> Result<crate::types::LogOutput> {
+pub fn run_analyzer(config: Config) -> Result<LogOutput> {
     let path = std::sync::Arc::new(config.path);
     let core_ids = core_affinity::get_core_ids().ok_or(anyhow::anyhow!("couldnt get core id"))?;
     let num = core_ids.len() * config.core_multiplier;
@@ -155,7 +155,7 @@ pub fn run_analyzer(config: crate::types::Config) -> Result<crate::types::LogOut
             .unwrap()
             .analyze()
     } else {
-        let mut result = Ok(crate::types::LogOutput::default());
+        let mut result = Ok(LogOutput::default());
         let point = &mut result;
 
         let (tx, rx) = crossbeam_channel::unbounded();
@@ -169,7 +169,7 @@ pub fn run_analyzer(config: crate::types::Config) -> Result<crate::types::LogOut
                 let rx = rx.clone();
                 let handle = scope.spawn(move || {
                     core_affinity::set_for_current(core_id);
-                    let mut local_log_output = crate::types::LogOutput::default();
+                    let mut local_log_output = LogOutput::default();
 
                     while let Ok(worker) = rx.recv() {
                         if let Ok(res) = worker.analyze() {
