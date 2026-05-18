@@ -13,9 +13,6 @@ pub struct ChunkedWorker{
 
 impl ChunkedWorker{
     fn new(path : Arc<std::path::PathBuf>, start_offset : u64, end_offset: u64) -> Result<Self>{
-        //let mut file = File::open(path)?;
-        //file.seek(SeekFrom::Start(start_offset))?;
-        //let reader = BufReader::with_capacity(1024 * 1024 * 100, file); 
         Ok(Self{
             start_offset,
             end_offset,
@@ -36,7 +33,7 @@ impl ChunkedWorker{
             if bytes_read ==0 {
                 break;
             }
-            let log_level = crate::parse_log_line(&buffer)
+            let log_level = crate::types::parse_log_line(&buffer)
                 .ok();
             log_output.inc(log_level);
             self.start_offset += bytes_read as u64;
