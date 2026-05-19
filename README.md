@@ -44,7 +44,10 @@ MALFORMED: 12
 # Build release binary
 make build
 
-# Analyze a log file
+# Analyze the default sample.log
+make run
+
+# Analyze a specific log file
 make run FILE=path/to/file.log
 
 # Run all tests
@@ -69,7 +72,7 @@ RUST_LOG=info LOG_FILE_PATH=path/to/file.log ./target/release/log_analyzer
 
 ## Configuration
 
-The analyzer can be configured via command-line arguments, environment variables, or a `.env` file.
+The analyzer can be configured via command-line arguments, environment variables, or a `.env` file. For performance testing, you can replace the contents of `sample.log` with a much larger dataset.
 
 | Variable | Purpose | Default |
 |---|---|---|
