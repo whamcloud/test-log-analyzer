@@ -1,0 +1,31 @@
+[package]
+name = "log-analyzer"
+version = "0.2.0"
+edition = "2021"
+authors = ["Shivam Kumar Yadav"]
+
+[[bin]]
+name = "log-analyzer"
+path = "src/main.rs"
+
+[lib]
+name = "log_analyzer"
+path = "src/lib.rs"
+
+[dependencies]
+memmap2 = "0.9"
+memchr  = "2.7"
+rayon   = "1.10"
+
+[dev-dependencies]
+tempfile  = "3.10"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "bench_analyzer"
+harness = false
+
+[profile.release]
+opt-level      = 3
+lto            = true
+codegen-units  = 1
