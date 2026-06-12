@@ -1,21 +1,19 @@
-# Zero-Copy Log Analyzer
+# High-Performance Log Analyzer
 
-## Summary
+A production-ready Rust log analyzer built for multi-gigabyte files.
 
-You have been tasked with writing a **high-performance log analyzer** in Rust.
+## Architecture
 
-The input is a log file that may be **several gigabytes** in size. Each line in
-the file follows a structured format. The goal is to analyze the file
-efficiently without loading it entirely into memory and without unnecessary
-allocations.
-
-The solution should emphasize **streaming processing**, **memory efficiency**,
-and **robust error handling**.
-
+| Concern | Solution |
+|---|---|
+| Streaming IO | `BufReader` (64 KB OS buffer) + `ChunkReader` iterator (8 MB chunks) |
+| Zero-copy parsing | `memchr` SIMD search on `&str` slices — no `String` allocation per line |
+| Parallelism | `rayon` `par_bridge` Map-Reduce over chunks |
+| Error handling | `thiserror` typed errors; malformed lines counted, never panic |
+| CLI | `clap` derive — supports `--help`, `--version`, env-var fallback |
+| Logging | `env_logger` — level controlled by `RUST_LOG` |
 
 ## Log Format
-
-Each line in the log file follows this format:
 
 ```
 <timestamp>|<level>|<service>|<message>
@@ -25,81 +23,62 @@ Example:
 ```
 2025-01-01T12:00:00Z|ERROR|auth|invalid token
 ```
-Where:
-* `timestamp` is an ISO-8601 timestamp
-* `level` is one of `INFO`, `WARN`, or `ERROR`
-* `service` is an alphanumeric service name
-* `message` is free-form text
 
-## Requirements
+- `timestamp`: ISO-8601
+- `level`: `INFO` | `WARN` | `ERROR`
+- `service`: alphanumeric
+- `message`: free-form text
 
-### Core Functionality
+## Output
 
-* Read the log file in a **streaming** manner
-* Do not load the entire file into memory
-* Parse each log line and extract the log level
-* Count occurrences of each log level:
-  * `INFO`
-  * `WARN`
-  * `ERROR`
-* Print a summary report after processing the entire file
-
-Example output:
 ```
 INFO: 120394
 WARN: 23941
 ERROR: 4821
+MALFORMED: 12
 ```
 
-## Performance Constraints
+## Commands
 
-* Must use buffered IO
-* Must not read the full file into memory
-* Avoid allocating new `String`s per log line where possible
-* Prefer **zero-copy parsing** using string slices
-* The solution must scale with increasing file size
+```bash
+# Build release binary
+make build
 
-## Error Handling
+# Analyze the default sample.log
+make run
 
-* Malformed lines must not cause the program to crash
-* Invalid lines may be skipped, logged, or counted separately
-* No panics on invalid input
+# Analyze a specific log file
+make run FILE=path/to/file.log
 
-## Additional Requirements
+# Run all tests
+make test
 
-* Your source should contain unit tests where appropriate
-* All code must be formatted using the standard formatting tool
-* Code must compile without clippy errors
-* The solution must use safe Rust only
+# Run benchmarks
+make bench
 
-## Design & Reasoning (Required)
+# Clean build artifacts
+make clean
+```
 
-Along with the code, include a document (for example `DESIGN.md`) explaining:
+## Direct Usage
 
-* How the file is read and processed
-* How parsing is performed without unnecessary allocations
-* Where allocations are unavoidable
-* Performance trade-offs made
-* How the solution behaves with very large files
+```bash
+# Via argument
+RUST_LOG=info ./target/release/log_analyzer path/to/file.log
 
-Submissions without a design explanation will not be reviewed.
+# Via environment variable
+RUST_LOG=info LOG_FILE_PATH=path/to/file.log ./target/release/log_analyzer
+```
 
-## Submission
+## Configuration
 
-Please fork this repository to your own GitHub account and submit a pull request
-to your own repository.
+The analyzer can be configured via command-line arguments, environment variables, or a `.env` file. For performance testing, you can replace the contents of `sample.log` with a much larger dataset.
 
-Your pull request should include:
+| Variable | Purpose | Default |
+|---|---|---|
+| `LOG_FILE_PATH` | File to analyze (alternative to positional argument) | None |
+| `CHUNK_SIZE` | Bytes per parallel worker chunk | `8388608` (8 MB) |
+| `READ_BUFFER_SIZE` | Bytes for the OS read buffer | `65536` (64 KB) |
+| `RUST_LOG` | Log verbosity (`error`, `warn`, `info`, `off`) | `info` |
 
-* A clear description of your approach
-* Any assumptions or trade-offs made
-* Instructions on how to run the program and tests
-
-A link to the pull request can be submitted once it is ready for review.
-
-## Bonus
-
-* Parallel processing of log file chunks
-* Support for configurable log formats
-* Separate reporting for malformed lines
-* Benchmark results or performance notes
+**Tuning Performance:** The default `CHUNK_SIZE` of 8 MB is tuned for large files (> 100 MB). For very small files, consider lowering it to improve parallelism. `READ_BUFFER_SIZE` dictates the chunking IO read size.

@@ -1,0 +1,50 @@
+2025-01-01T12:00:00Z|INFO|auth|user logged in
+2025-01-01T12:00:01Z|INFO|api|request processed successfully
+2025-01-01T12:00:02Z|WARN|db|query taking longer than expected
+2025-01-01T12:00:03Z|INFO|cache|cache miss for user data
+2025-01-01T12:00:04Z|ERROR|auth|invalid access token provided
+2025-01-01T12:00:05Z|INFO|payment|transaction 1234 initiated
+2025-01-01T12:00:06Z|INFO|payment|transaction 1234 completed
+2025-01-01T12:00:07Z|INFO|api|health check passed
+2025-01-01T12:00:08Z|WARN|api|rate limit approaching for IP 192.168.1.5
+2025-01-01T12:00:09Z|ERROR|db|connection timeout to primary database
+2025-01-01T12:00:10Z|INFO|db|failover to secondary database successful
+2025-01-01T12:00:11Z|INFO|auth|new user registered
+2025-01-01T12:00:12Z|INFO|cache|cache hit for product catalog
+2025-01-01T12:00:13Z|INFO|api|user profile updated
+2025-01-01T12:00:14Z|WARN|payment|third-party gateway latency high
+2025-01-01T12:00:15Z|INFO|auth|password reset requested
+2025-01-01T12:00:16Z|ERROR|api|unhandled exception in route /users/list
+THIS_IS_A_MALFORMED_LINE_WITHOUT_PIPES
+2025-01-01T12:00:18Z|INFO|cache|clearing stale entries
+2025-01-01T12:00:19Z|INFO|db|vacuum operation completed
+2025-01-01T12:00:20Z|WARN|auth|multiple failed login attempts
+2025-01-01T12:00:21Z|INFO|api|request processed successfully
+2025-01-01T12:00:22Z|INFO|api|request processed successfully
+2025-01-01T12:00:23Z|INFO|payment|subscription renewed
+2025-01-01T12:00:24Z|INFO|auth|user logged out
+2025-01-01T12:00:25Z|ERROR|worker|failed to process background job 889
+2025-01-01T12:00:26Z|INFO|worker|retrying background job 889
+2025-01-01T12:00:27Z|INFO|worker|job 889 completed successfully on retry
+2025-01-01T12:00:28Z|INFO|api|metrics aggregated and flushed
+2025-01-01T12:00:29Z|INFO|db|daily backup started
+2025-01-01T12:00:30Z|INFO|db|daily backup completed
+2025-01-01T12:00:31Z|WARN|cache|memory usage at 85%
+2025-01-01T12:00:32Z|INFO|api|scaling up web dynos
+2025-01-01T12:00:33Z|INFO|api|new dyno instance ready
+2025-01-01T12:00:34Z|INFO|auth|admin login successful
+2025-01-01T12:00:35Z|INFO|admin|configuration reloaded
+2025-01-01T12:00:36Z|ERROR|api|502 Bad Gateway from downstream service
+2025-01-01T12:00:37Z|INFO|api|downstream service recovered
+2025-01-01T12:00:38Z|INFO|payment|refund issued for transaction 991
+2025-01-01T12:00:39Z|WARN|api|deprecated endpoint /v1/users accessed
+2025-01-01T12:00:40Z|INFO|db|index rebuilt
+2025-01-01T12:00:41Z|INFO|auth|user session expired
+2025-01-01T12:00:42Z|INFO|api|health check passed
+2025-01-01T12:00:43Z|INFO|api|health check passed
+2025-01-01T12:00:44Z|WARN|worker|queue depth high
+2025-01-01T12:00:45Z|INFO|worker|queue drained
+2025-01-01T12:00:46Z|INFO|payment|daily reconciliation started
+2025-01-01T12:00:47Z|INFO|payment|daily reconciliation finished
+2025-01-01T12:00:48Z|ERROR|auth|SAML identity provider unreachable
+2025-01-01T12:00:49Z|INFO|auth|SAML connection restored
